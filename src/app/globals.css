@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-papier: #f7f2e8;
+  --color-carte: #fffdf8;
+  --color-encre: #1c2b24;
+  --color-gris: #58645c;
+  --color-trait: #e2d9c8;
+  --color-foret: #1f4d3a;
+  --color-foret-fonce: #163a2b;
+  --color-tomate: #c43d22;
+  --color-soleil: #f2b632;
+
+  --font-sans: var(--font-texte);
+  --font-titre: var(--font-affiche);
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-papier);
+  color: var(--color-encre);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-foret);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .bouton-plein,
+  .bouton-contour {
+    @apply inline-block rounded-full px-5 py-2.5 text-center text-sm font-semibold transition-colors;
+  }
+  .bouton-plein {
+    @apply bg-foret text-white hover:bg-foret-fonce disabled:opacity-60;
+  }
+  .bouton-contour {
+    @apply border border-trait bg-carte text-encre hover:border-foret;
+  }
+  .champ {
+    @apply w-full rounded-xl border border-trait bg-carte px-3.5 py-2.5 text-sm text-encre placeholder:text-gris focus:border-foret;
+  }
+  .libelle {
+    @apply mb-1.5 block text-sm font-semibold;
+  }
+  .erreur {
+    @apply mt-1.5 text-sm text-tomate;
+  }
+}
+
+/* Épingles de la carte : le style de Leaflet ne passe pas par Tailwind. */
+.epingle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+
+.leaflet-container {
+  font-family: inherit;
+}

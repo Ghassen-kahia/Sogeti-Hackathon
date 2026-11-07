@@ -1,48 +1,119 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
-  output   = "../generated"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// #TODO Changer le schéma model selon le schéma cible
-model Customer {
-  id        String @id @default(uuid())
-  name      String
-  email     String @unique
-  imageUrl  String
-  Invoices Invoices[]
-}
-
-enum InvoiceStatus {
-  pending
-  paid
-}
-
-model Invoices {
-  id          String @id @default(uuid())
-  customerId  String
-  amount       Int
-  status      InvoiceStatus
-  date        String
-  Customer    Customer @relation(fields: [customerId], references: [id])
-}
-
-model Revenue {
-  month       String @id
-  revenue     Int
-}
-
+/// Un habitant. Volontairement minimal : un pseudo, aucune donnée personnelle ni mot de passe.
 model User {
-  id          String @id @default(uuid())
-  name        String
-  email       String @unique
-  password    String
+  id          Int      @id @default(autoincrement())
+  nickname    String   @db.VarChar(24)
+  /// Pseudo en minuscules : garantit l'unicité sans tenir compte de la casse.
+  nicknameKey String   @unique @map("nickname_key") @db.VarChar(24)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  suggestions Suggestion[]
+  votes       Vote[]
+
+  @@map("users")
+}
+
+model Categorie {
+  id      Int    @id @default(autoincrement())
+  nom     String @unique @db.VarChar(60)
+  slug    String @unique @db.VarChar(60)
+  /// Couleur hexadécimale (#rrggbb) utilisée pour les badges et les épingles de la carte.
+  couleur String @db.VarChar(7)
+
+  suggestions Suggestion[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id  Int    @id @default(autoincrement())
+  nom String @unique @db.VarChar(30)
+
+  suggestions Suggestion[]
+
+  @@map("tags")
+}
+
+/// Un quartier, avec le point sur lequel centrer la carte.
+model Localisation {
+  id        Int    @id @default(autoincrement())
+  nom       String @unique @db.VarChar(80)
+  slug      String @unique @db.VarChar(80)
+  ville     String @db.VarChar(80)
+  latitude  Float
+  longitude Float
+
+  suggestions Suggestion[]
+
+  @@map("localisations")
+}
+
+/// Une idée proposée par un habitant.
+model Suggestion {
+  id             Int      @id @default(autoincrement())
+  titre          String   @db.VarChar(120)
+  description    String
+  /// Position précise facultative : sans elle, l'idée n'apparaît pas sur la carte.
+  latitude       Float?
+  longitude      Float?
+  /// Compteurs dénormalisés depuis `votes`, pour trier par score en SQL.
+  votesPour      Int      @default(0) @map("votes_pour")
+  votesContre    Int      @default(0) @map("votes_contre")
+  score          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  auteurId       Int      @map("auteur_id")
+  categorieId    Int      @map("categorie_id")
+  localisationId Int      @map("localisation_id")
+
+  auteur       User          @relation(fields: [auteurId], references: [id], onDelete: Cascade)
+  categorie    Categorie     @relation(fields: [categorieId], references: [id], onDelete: Restrict)
+  localisation Localisation  @relation(fields: [localisationId], references: [id], onDelete: Restrict)
+  tags         Tag[]
+  piecesJointes PieceJointe[]
+  votes        Vote[]
+
+  @@index([createdAt])
+  @@index([score])
+  @@index([categorieId])
+  @@index([localisationId])
+  @@map("suggestions")
+}
+
+/// Un document joint à une idée. Le fichier est sur le disque, seules ses métadonnées sont ici.
+model PieceJointe {
+  id           Int      @id @default(autoincrement())
+  nomOriginal  String   @map("nom_original") @db.VarChar(255)
+  nomStockage  String   @unique @map("nom_stockage") @db.VarChar(64)
+  typeMime     String   @map("type_mime") @db.VarChar(120)
+  taille       Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  suggestionId Int      @map("suggestion_id")
+
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@index([suggestionId])
+  @@map("pieces_jointes")
+}
+
+/// Un vote par habitant et par idée : +1 (pour) ou -1 (contre).
+model Vote {
+  userId       Int      @map("user_id")
+  suggestionId Int      @map("suggestion_id")
+  valeur       Int      @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, suggestionId])
+  @@index([suggestionId])
+  @@map("votes")
 }

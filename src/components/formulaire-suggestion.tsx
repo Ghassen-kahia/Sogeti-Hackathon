@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { creerSuggestion } from "@/app/actions";
 import { CarteChoixPosition } from "@/components/carte-lazy";
 import type { Point } from "@/components/carte";
+import { exempleIdee } from "@/lib/exemples-idees";
+import { grouperLieux, lieuParDefaut } from "@/lib/lieux";
 import {
   EXTENSIONS_ACCEPTEES,
   MAX_FICHIERS,
@@ -15,8 +17,8 @@ import {
 } from "@/lib/validation";
 
 type Props = {
-  categories: { id: number; nom: string }[];
-  quartiers: (Point & { id: number; nom: string })[];
+  categories: { id: number; nom: string; slug: string }[];
+  quartiers: (Point & { id: number; nom: string; slug: string; ville: string })[];
   tagsExistants: string[];
 };
 
@@ -24,6 +26,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
   const router = useRouter();
   const [etat, setEtat] = useState<EtatSuggestion>({});
   const [enCours, demarrer] = useTransition();
+  const [categorieId, setCategorieId] = useState("");
   const [quartierId, setQuartierId] = useState("");
   const [position, setPosition] = useState<Point | null>(null);
   const [tags, setTags] = useState<string[]>([]);
@@ -31,9 +34,11 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
   const [erreurFichiers, setErreurFichiers] = useState("");
 
   const centre = useMemo(() => {
-    const choisi = quartiers.find((q) => String(q.id) === quartierId) ?? quartiers[0];
+    const choisi = quartiers.find((q) => String(q.id) === quartierId) ?? lieuParDefaut(quartiers);
     return { latitude: choisi?.latitude ?? 46.6, longitude: choisi?.longitude ?? 2.4 };
   }, [quartiers, quartierId]);
+
+  const exemple = exempleIdee(categories.find((c) => String(c.id) === categorieId)?.slug);
 
   function ajouterTag(valeur: string, liste = tags) {
     const tag = valeur.trim().replace(/^#/, "").toLowerCase();
@@ -79,6 +84,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
       setEtat({});
       setTags([]);
       setPosition(null);
+      setCategorieId("");
       setQuartierId("");
       router.push(`/idees/${resultat.id}`);
     });
@@ -92,7 +98,14 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
         <label htmlFor="titre" className="libelle">
           Titre
         </label>
-        <input id="titre" name="titre" maxLength={120} className="champ" aria-invalid={Boolean(erreurs.titre)} />
+        <input
+          id="titre"
+          name="titre"
+          maxLength={120}
+          placeholder={exemple.titre}
+          className="champ"
+          aria-invalid={Boolean(erreurs.titre)}
+        />
         {erreurs.titre && <p className="erreur">{erreurs.titre}</p>}
       </div>
 
@@ -105,7 +118,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
           name="description"
           rows={6}
           maxLength={3000}
-          placeholder="Quel problème votre idée résout-elle ? Comment la mettre en place ?"
+          placeholder={exemple.description}
           className="champ"
           aria-invalid={Boolean(erreurs.description)}
         />
@@ -117,7 +130,14 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
           <label htmlFor="categorieId" className="libelle">
             Catégorie
           </label>
-          <select id="categorieId" name="categorieId" defaultValue="" className="champ" aria-invalid={Boolean(erreurs.categorieId)}>
+          <select
+            id="categorieId"
+            name="categorieId"
+            value={categorieId}
+            onChange={(e) => setCategorieId(e.target.value)}
+            className="champ"
+            aria-invalid={Boolean(erreurs.categorieId)}
+          >
             <option value="" disabled>
               Choisir
             </option>
@@ -132,7 +152,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
 
         <div>
           <label htmlFor="localisationId" className="libelle">
-            Quartier
+            Lieu
           </label>
           <select
             id="localisationId"
@@ -145,10 +165,14 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
             <option value="" disabled>
               Choisir
             </option>
-            {quartiers.map((q) => (
-              <option key={q.id} value={q.id}>
-                {q.nom}
-              </option>
+            {grouperLieux(quartiers).map((groupe) => (
+              <optgroup key={groupe.libelle} label={groupe.libelle}>
+                {groupe.lieux.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.nom}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           {erreurs.localisationId && <p className="erreur">{erreurs.localisationId}</p>}
@@ -167,7 +191,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
           onKeyDown={toucheTag}
           maxLength={30}
           disabled={tags.length >= MAX_TAGS}
-          placeholder="Tapez un tag puis Entrée"
+          placeholder={exemple.tag}
           className="champ"
         />
         <datalist id="tags-existants">
@@ -194,7 +218,7 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
         {erreurs.tags && <p className="erreur">{erreurs.tags}</p>}
       </div>
 
-      <div>
+      <div className="carte-facultative">
         <p className="libelle">
           Emplacement <span className="font-normal text-gris">(facultatif)</span>
         </p>
@@ -231,11 +255,26 @@ export function FormulaireSuggestion({ categories, quartiers, tagsExistants }: P
         {(erreurFichiers || erreurs.fichiers) && <p className="erreur">{erreurFichiers || erreurs.fichiers}</p>}
       </div>
 
+      {etat.refus && (
+        <div role="alert" className="rounded-2xl border border-tomate bg-tomate/10 p-4 text-sm">
+          <p className="font-semibold">Votre idée n&apos;a pas été publiée :</p>
+          <ul className="mt-1 list-inside list-disc">
+            {etat.refus.map((raison) => (
+              <li key={raison}>{raison}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {etat.erreur && (
         <p role="alert" className="erreur">
           {etat.erreur}
         </p>
       )}
+
+      <p className="text-sm text-gris">
+        Restez courtois et ne donnez pas de coordonnées personnelles. Chaque idée est vérifiée avant publication.
+      </p>
 
       <button type="submit" disabled={enCours} className="bouton-plein w-full sm:w-auto">
         {enCours ? "Publication…" : "Publier mon idée"}

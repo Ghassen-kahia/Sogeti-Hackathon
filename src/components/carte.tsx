@@ -5,31 +5,63 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import { createElementObject, createLayerComponent, extendContext } from "@react-leaflet/core";
+import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { Pictogramme } from "@/components/pictogramme";
+import { htmlEpingle } from "@/lib/pictogrammes";
 
 export type Epingle = {
   id: number;
   titre: string;
   latitude: number;
   longitude: number;
-  votesPour: number;
-  votesContre: number;
+  likes: number;
   categorie: string;
+  slug: string;
   couleur: string;
 };
 
 export type Point = { latitude: number; longitude: number };
 
-function icone(couleur: string) {
-  const sure = /^#[0-9a-f]{6}$/i.test(couleur) ? couleur : "#1f4d3a";
+function icone(couleur: string, slug?: string, nom?: string) {
   return L.divIcon({
     className: "",
-    html: `<div class="epingle" style="background:${sure}"></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 24],
-    popupAnchor: [0, -24],
+    html: htmlEpingle(couleur, slug, nom),
+    iconSize: [38, 46],
+    iconAnchor: [19, 45],
+    popupAnchor: [0, -42],
+    tooltipAnchor: [0, -42],
   });
 }
+
+function iconeGrappe(grappe: L.MarkerCluster) {
+  const nombre = grappe.getChildCount();
+  return L.divIcon({
+    className: "",
+    html: `<div class="grappe">${nombre}<span class="sr-only"> idées ici : zoomer</span></div>`,
+    iconSize: [42, 42],
+  });
+}
+
+function sansAnimation() {
+  return (
+    document.documentElement.dataset.a11yAnimations === "true" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Les épingles proches sont regroupées : aucune ne se cache sous une autre, un clic sur le groupe zoome. */
+const Grappes = createLayerComponent<L.MarkerClusterGroup, { children: ReactNode }>(function creer(_, contexte) {
+  const groupe = L.markerClusterGroup({
+    iconCreateFunction: iconeGrappe,
+    maxClusterRadius: 44,
+    showCoverageOnHover: false,
+    animate: !sansAnimation(),
+  });
+  return createElementObject(groupe, extendContext(contexte, { layerContainer: groupe }));
+});
 
 /**
  * Next garde les routes quittées montées mais cachées (<Activity>) : leurs effets sont nettoyés, ce qui
@@ -55,38 +87,96 @@ function Fond() {
   );
 }
 
-function CadrerEpingles({ epingles }: { epingles: Epingle[] }) {
+type PropsCadrage = { epingles: Epingle[]; centre: Point; zoom?: number };
+type PropsIdees = PropsCadrage & { legende?: boolean };
+
+function Cadrer({ epingles, centre, zoom = 13 }: PropsCadrage) {
   const carte = useMap();
+  // Clé en texte : un vote rafraîchit la page avec de nouveaux tableaux, sans que la vue doive bouger.
+  const cadrage = JSON.stringify({
+    points: epingles.map((e) => [e.latitude, e.longitude]),
+    repli: [centre.latitude, centre.longitude],
+    zoom,
+  });
+
   useEffect(() => {
-    if (epingles.length === 0) return;
-    const limites = L.latLngBounds(epingles.map((e) => [e.latitude, e.longitude]));
-    carte.fitBounds(limites, { padding: [36, 36], maxZoom: 15 });
-  }, [carte, epingles]);
+    const { points, repli, zoom } = JSON.parse(cadrage) as {
+      points: [number, number][];
+      repli: [number, number];
+      zoom: number;
+    };
+    if (points.length > 0) carte.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: 15 });
+    else carte.setView(repli, zoom);
+  }, [carte, cadrage]);
   return null;
 }
 
-type PropsIdees = { epingles: Epingle[]; centre: Point; zoom?: number };
+function Legende({ epingles, masquees, onBascule }: { epingles: Epingle[]; masquees: string[]; onBascule: (slug: string) => void }) {
+  const categories = [...new Map(epingles.map((e) => [e.slug, e])).values()].sort((a, b) =>
+    a.categorie.localeCompare(b.categorie, "fr"),
+  );
 
-export default function CarteIdees({ epingles, centre, zoom = 13 }: PropsIdees) {
+  return (
+    <div role="group" aria-label="Afficher ou masquer une catégorie sur la carte" className="legende-carte">
+      {categories.map((c) => (
+        <button
+          key={c.slug}
+          type="button"
+          aria-pressed={!masquees.includes(c.slug)}
+          onClick={() => onBascule(c.slug)}
+          className="legende-entree"
+        >
+          <span className="legende-pastille" style={{ backgroundColor: c.couleur }}>
+            <Pictogramme slug={c.slug} className="size-4" />
+          </span>
+          {c.categorie} ({epingles.filter((e) => e.slug === c.slug).length})
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function CarteIdees({ epingles, centre, zoom = 13, legende = false }: PropsIdees) {
+  const [masquees, setMasquees] = useState<string[]>([]);
+  const visibles = epingles.filter((e) => !masquees.includes(e.slug));
+
+  function basculer(slug: string) {
+    setMasquees((liste) => (liste.includes(slug) ? liste.filter((s) => s !== slug) : [...liste, slug]));
+  }
+
   return (
     <SiVisible>
-      <MapContainer center={[centre.latitude, centre.longitude]} zoom={zoom} className="h-full w-full">
-        <Fond />
-        <CadrerEpingles epingles={epingles} />
-        {epingles.map((e) => (
-          <Marker key={e.id} position={[e.latitude, e.longitude]} icon={icone(e.couleur)} title={e.titre}>
-            <Popup>
-              <p className="!m-0 text-xs text-gris">{e.categorie}</p>
-              <Link href={`/idees/${e.id}`} className="font-semibold">
-                {e.titre}
-              </Link>
-              <p className="!m-0 mt-1 text-xs">
-                {e.votesPour} pour · {e.votesContre} contre
-              </p>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      <div className="flex h-full flex-col">
+        <MapContainer center={[centre.latitude, centre.longitude]} zoom={zoom} className="min-h-0 w-full flex-1">
+          <Fond />
+          <Cadrer epingles={epingles} centre={centre} zoom={zoom} />
+          <Grappes>
+            {visibles.map((e) => (
+              <Marker
+                key={e.id}
+                position={[e.latitude, e.longitude]}
+                icon={icone(e.couleur, e.slug, `${e.categorie} : ${e.titre}`)}
+              >
+                <Tooltip direction="top">
+                  <strong>{e.categorie}</strong>
+                  <br />
+                  {e.titre}
+                </Tooltip>
+                <Popup>
+                  <p className="!m-0 text-xs text-gris">{e.categorie}</p>
+                  <Link href={`/idees/${e.id}`} className="font-semibold">
+                    {e.titre}
+                  </Link>
+                  <p className="!m-0 mt-1 text-xs">
+                    {e.likes} j&apos;aime · <Link href={`/idees/${e.id}/visite`}>Visiter en 3D</Link>
+                  </p>
+                </Popup>
+              </Marker>
+            ))}
+          </Grappes>
+        </MapContainer>
+        {legende && epingles.length > 0 && <Legende epingles={epingles} masquees={masquees} onBascule={basculer} />}
+      </div>
     </SiVisible>
   );
 }
@@ -94,14 +184,19 @@ export default function CarteIdees({ epingles, centre, zoom = 13 }: PropsIdees) 
 function Recentrer({ centre }: { centre: Point }) {
   const carte = useMap();
   useEffect(() => {
-    carte.flyTo([centre.latitude, centre.longitude], 15, { duration: 0.6 });
+    if (sansAnimation()) carte.setView([centre.latitude, centre.longitude], 15);
+    else carte.flyTo([centre.latitude, centre.longitude], 15, { duration: 0.6 });
   }, [carte, centre]);
   return null;
 }
 
 function CaptureClic({ onChange }: { onChange: (p: Point) => void }) {
   useMapEvents({
-    click: (e) => onChange({ latitude: e.latlng.lat, longitude: e.latlng.lng }),
+    // La carte se répète à l'infini : wrap() ramène le clic entre -180 et 180 degrés.
+    click: (e) => {
+      const { lat, lng } = e.latlng.wrap();
+      onChange({ latitude: lat, longitude: lng });
+    },
   });
   return null;
 }

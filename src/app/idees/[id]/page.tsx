@@ -3,9 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CarteIdees } from "@/components/carte-lazy";
 import { BadgeCategorie, dateFr } from "@/components/idee-card";
-import { Vote } from "@/components/vote";
-import { getMesVotes, getSuggestion } from "@/lib/queries";
-import { getUtilisateur } from "@/lib/session";
+import { ActionsModeration } from "@/components/actions-moderation";
+import { LectureVoix } from "@/components/lecture-voix";
+import { Signaler } from "@/components/signaler";
+import { BoutonJaime } from "@/components/jaime";
+import { getMesLikes, getSuggestion } from "@/lib/queries";
+import { estModerateur, getUtilisateur } from "@/lib/session";
+import { estIdValide } from "@/lib/validation";
 
 export default function PageIdee({ params }: PageProps<"/idees/[id]">) {
   return (
@@ -27,19 +31,35 @@ function tailleLisible(octets: number) {
 
 async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) {
   const id = Number((await params).id);
-  if (!Number.isInteger(id) || id < 1 || id > 2147483647) notFound();
+  if (!estIdValide(id)) notFound();
 
-  const [idee, utilisateur] = await Promise.all([getSuggestion(id), getUtilisateur()]);
+  const [idee, utilisateur, moderateur] = await Promise.all([getSuggestion(id), getUtilisateur(), estModerateur()]);
   if (!idee) notFound();
 
-  const mesVotes = await getMesVotes(utilisateur?.id, [id]);
+  const publiee = idee.statut === "PUBLIEE";
+  const auteur = utilisateur?.id === idee.auteurId;
+  if (!publiee && !auteur && !moderateur) notFound();
+
+  const mesLikes = await getMesLikes(utilisateur?.id, [id]);
   const images = idee.piecesJointes.filter((p) => p.typeMime.startsWith("image/"));
   const documents = idee.piecesJointes.filter((p) => !p.typeMime.startsWith("image/"));
 
   return (
     <article className="mt-6">
+      {idee.statut === "EN_ATTENTE" && (
+        <p role="status" className="mb-5 rounded-2xl border border-soleil bg-soleil/15 p-4 text-sm">
+          <strong>En cours de vérification.</strong> Cette idée n&apos;est visible que par vous pour l&apos;instant. Un
+          modérateur va la relire, elle sera publiée si elle respecte les règles de la plateforme.
+        </p>
+      )}
+      {idee.statut === "REJETEE" && (
+        <p role="status" className="mb-5 rounded-2xl border border-tomate bg-tomate/10 p-4 text-sm">
+          <strong>Idée non publiée.</strong> {idee.noteModeration}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gris">
-        <BadgeCategorie nom={idee.categorie.nom} couleur={idee.categorie.couleur} />
+        <BadgeCategorie {...idee.categorie} />
         <span>{idee.localisation.nom}</span>
       </div>
       <h1 className="mt-3 font-titre text-3xl leading-tight font-semibold text-foret sm:text-4xl">{idee.titre}</h1>
@@ -48,6 +68,7 @@ async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) 
       </p>
 
       <p className="mt-6 leading-relaxed break-words whitespace-pre-line">{idee.description}</p>
+      <LectureVoix texte={`${idee.titre}. ${idee.description}`} />
 
       {idee.tags.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-sm">
@@ -61,16 +82,28 @@ async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) 
         </ul>
       )}
 
-      <section className="mt-8 rounded-2xl border border-trait bg-carte p-5">
-        <h2 className="mb-3 font-titre text-lg font-semibold">Qu&apos;en pensez-vous ?</h2>
-        <Vote
-          suggestionId={idee.id}
-          pour={idee.votesPour}
-          contre={idee.votesContre}
-          monVote={mesVotes[idee.id] ?? 0}
-          connecte={Boolean(utilisateur)}
-        />
-      </section>
+      <Link href={`/idees/${idee.id}/visite`} className="bouton-plein mt-6">
+        Visiter en 3D sur le terrain
+      </Link>
+
+      {publiee && (
+        <section className="mt-8 rounded-2xl border border-trait bg-carte p-5">
+          <h2 className="mb-3 font-titre text-lg font-semibold">Cette idée vous plaît ?</h2>
+          <BoutonJaime
+            suggestionId={idee.id}
+            likes={idee.likes}
+            aime={mesLikes.has(idee.id)}
+            connecte={Boolean(utilisateur)}
+          />
+        </section>
+      )}
+
+      {moderateur && (
+        <section className="mt-6 rounded-2xl border border-trait bg-carte p-5">
+          <h2 className="mb-3 font-titre text-lg font-semibold">Modération</h2>
+          <ActionsModeration id={idee.id} statut={idee.statut} />
+        </section>
+      )}
 
       {idee.piecesJointes.length > 0 && (
         <section className="mt-8">
@@ -108,8 +141,8 @@ async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) 
         </section>
       )}
 
-      {idee.latitude !== null && idee.longitude !== null && (
-        <section className="mt-8">
+      {idee.latitude !== null && idee.longitude !== null && publiee && (
+        <section className="carte-facultative mt-8">
           <h2 className="mb-3 font-titre text-lg font-semibold">Emplacement</h2>
           <div className="isolate h-72 overflow-hidden rounded-2xl border border-trait">
             <CarteIdees
@@ -121,9 +154,9 @@ async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) 
                   titre: idee.titre,
                   latitude: idee.latitude,
                   longitude: idee.longitude,
-                  votesPour: idee.votesPour,
-                  votesContre: idee.votesContre,
+                  likes: idee.likes,
                   categorie: idee.categorie.nom,
+                  slug: idee.categorie.slug,
                   couleur: idee.categorie.couleur,
                 },
               ]}
@@ -131,6 +164,8 @@ async function Idee({ params }: { params: PageProps<"/idees/[id]">["params"] }) 
           </div>
         </section>
       )}
+
+      {publiee && !auteur && <Signaler suggestionId={idee.id} connecte={Boolean(utilisateur)} />}
     </article>
   );
 }

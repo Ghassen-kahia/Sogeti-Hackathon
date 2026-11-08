@@ -10,8 +10,8 @@ export default function PageConnexion({ searchParams }: PageProps<"/connexion">)
       <div className="rounded-2xl border border-trait bg-carte p-6 sm:p-8">
         <h1 className="font-titre text-3xl font-semibold text-foret">Choisissez un pseudo</h1>
         <p className="mt-2 text-sm leading-relaxed text-gris">
-          Ni e-mail, ni mot de passe : votre pseudo suffit pour voter et proposer des idées. Il n&apos;est pas
-          protégé, et reprendre un pseudo existant permet de retrouver ses votes.
+          Ni e-mail, ni mot de passe : votre pseudo suffit pour aimer et proposer des idées. Il n&apos;est pas
+          protégé, et reprendre un pseudo existant permet de retrouver ses j&apos;aime.
         </p>
         <Suspense fallback={<div className="mt-6 h-36" />}>
           <Formulaire searchParams={searchParams} />

@@ -4,10 +4,11 @@ import type { ChangeEvent } from "react";
 import Form from "next/form";
 
 type Option = { valeur: string; libelle: string };
+type Groupe = { libelle: string; options: Option[] };
 
 type Props = {
-  actifs: { q: string; quartier: string; categorie: string; tag: string; tri: string };
-  quartiers: Option[];
+  actifs: { q: string; quartier: string; categorie: string; tag: string; tri: string; vue: string };
+  quartiers: Groupe[];
   categories: Option[];
   tags: Option[];
 };
@@ -20,6 +21,7 @@ function soumettre(e: ChangeEvent<HTMLSelectElement>) {
 export function Filtres({ actifs, quartiers, categories, tags }: Props) {
   return (
     <Form action="/" key={JSON.stringify(actifs)} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      {actifs.vue === "carte" && <input type="hidden" name="vue" value="carte" />}
       <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
         <label htmlFor="recherche" className="sr-only">
           Rechercher une idée
@@ -29,7 +31,7 @@ export function Filtres({ actifs, quartiers, categories, tags }: Props) {
           name="q"
           type="search"
           defaultValue={actifs.q}
-          placeholder="Rechercher une idée"
+          placeholder="Rechercher une idée : piste cyclable, jardin, marché…"
           className="champ"
         />
         <button type="submit" className="bouton-contour">
@@ -37,7 +39,7 @@ export function Filtres({ actifs, quartiers, categories, tags }: Props) {
         </button>
       </div>
 
-      <Liste nom="quartier" libelle="Quartier" tous="Tous les quartiers" valeur={actifs.quartier} options={quartiers} />
+      <Liste nom="quartier" libelle="Lieu" tous="Tous les lieux" valeur={actifs.quartier} groupes={quartiers} />
       <Liste nom="categorie" libelle="Catégorie" tous="Toutes les catégories" valeur={actifs.categorie} options={categories} />
       <Liste nom="tag" libelle="Tag" tous="Tous les tags" valeur={actifs.tag} options={tags} />
 
@@ -47,16 +49,23 @@ export function Filtres({ actifs, quartiers, categories, tags }: Props) {
         </label>
         <select id="tri" name="tri" defaultValue={actifs.tri} onChange={soumettre} className="champ">
           <option value="recentes">Les plus récentes</option>
-          <option value="mieux-notees">Les mieux notées</option>
+          <option value="plus-aimees">Les plus aimées</option>
         </select>
       </div>
     </Form>
   );
 }
 
-type PropsListe = { nom: string; libelle: string; tous: string; valeur: string; options: Option[] };
+type PropsListe = {
+  nom: string;
+  libelle: string;
+  tous: string;
+  valeur: string;
+  options?: Option[];
+  groupes?: Groupe[];
+};
 
-function Liste({ nom, libelle, tous, valeur, options }: PropsListe) {
+function Liste({ nom, libelle, tous, valeur, options = [], groupes = [] }: PropsListe) {
   return (
     <div>
       <label htmlFor={nom} className="sr-only">
@@ -68,6 +77,15 @@ function Liste({ nom, libelle, tous, valeur, options }: PropsListe) {
           <option key={o.valeur} value={o.valeur}>
             {o.libelle}
           </option>
+        ))}
+        {groupes.map((g) => (
+          <optgroup key={g.libelle} label={g.libelle}>
+            {g.options.map((o) => (
+              <option key={o.valeur} value={o.valeur}>
+                {o.libelle}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Vote } from "@/components/vote";
+import { BoutonJaime } from "@/components/jaime";
+import { Pictogramme } from "@/components/pictogramme";
 import type { SuggestionListee } from "@/lib/queries";
 
 const formatDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
@@ -8,26 +9,27 @@ export function dateFr(date: Date) {
   return formatDate.format(date);
 }
 
-export function BadgeCategorie({ nom, couleur }: { nom: string; couleur: string }) {
+export function BadgeCategorie({ nom, slug, couleur }: { nom: string; slug: string; couleur: string }) {
   return (
     <span
-      className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+      className="badge-categorie inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
       style={{ backgroundColor: `${couleur}1f`, color: couleur }}
     >
+      <Pictogramme slug={slug} className="size-3.5" />
       {nom}
     </span>
   );
 }
 
-type Props = { idee: SuggestionListee; monVote: number; connecte: boolean };
+type Props = { idee: SuggestionListee; aime: boolean; connecte: boolean };
 
-export function IdeeCard({ idee, monVote, connecte }: Props) {
+export function IdeeCard({ idee, aime, connecte }: Props) {
   const nbPieces = idee._count.piecesJointes;
 
   return (
-    <article className="rounded-2xl border border-trait bg-carte p-5">
+    <article className="flex flex-col rounded-2xl border border-trait bg-carte p-5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gris">
-        <BadgeCategorie nom={idee.categorie.nom} couleur={idee.categorie.couleur} />
+        <BadgeCategorie {...idee.categorie} />
         <span>{idee.localisation.nom}</span>
       </div>
 
@@ -50,14 +52,8 @@ export function IdeeCard({ idee, monVote, connecte }: Props) {
         </ul>
       )}
 
-      <div className="mt-4">
-        <Vote
-          suggestionId={idee.id}
-          pour={idee.votesPour}
-          contre={idee.votesContre}
-          monVote={monVote}
-          connecte={connecte}
-        />
+      <div className="mt-auto pt-4">
+        <BoutonJaime suggestionId={idee.id} likes={idee.likes} aime={aime} connecte={connecte} />
       </div>
 
       <p className="mt-3 text-xs text-gris">

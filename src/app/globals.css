@@ -53,14 +53,251 @@ body {
 
 /* Épingles de la carte : le style de Leaflet ne passe pas par Tailwind. */
 .epingle {
-  width: 20px;
-  height: 20px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.5));
+}
+.epingle svg {
+  display: block;
+}
+
+.grappe {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--color-foret);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.5);
+}
+
+/* En rem : quand le texte grandit, les fiches passent d'elles-mêmes sur moins de colonnes. */
+.grille-fiches {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+}
+
+.message-sans-carte {
+  display: none;
+}
+
+.choix-segmente {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--color-trait);
+  border-radius: 999px;
+  background: var(--color-carte);
+}
+.choix-segmente :is(a, button) {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.choix-segmente :is([aria-pressed="true"], [aria-current="page"]) {
+  background: var(--color-foret);
+  color: #fff;
+}
+.commande-visite {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--color-trait);
+  border-radius: 0.75rem;
+  background: var(--color-carte);
+  color: var(--color-encre);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.legende-carte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  max-height: 45%;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-trait);
+  background: var(--color-carte);
+  padding: 0.5rem;
+}
+.legende-entree {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem 0.125rem 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.legende-entree[aria-pressed="false"] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.legende-pastille {
+  display: grid;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
 }
 
 .leaflet-container {
   font-family: inherit;
+}
+
+/* Toujours actif : le lien d'évitement et le respect du réglage du système. */
+.lien-evitement {
+  position: absolute;
+  left: 1rem;
+  top: -100px;
+  z-index: 50;
+  border-radius: 0.75rem;
+  background: var(--color-foret);
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+}
+.lien-evitement:focus {
+  top: 0.5rem;
+}
+
+.panneau-accessibilite {
+  margin: auto;
+  width: min(44rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--color-trait);
+  background: var(--color-carte);
+  color: var(--color-encre);
+  padding: 1.5rem;
+}
+.panneau-accessibilite::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+.carte-profil {
+  display: flex;
+  gap: 0.75rem;
+  cursor: pointer;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-trait);
+  padding: 0.75rem;
+}
+.carte-profil:has(input:checked) {
+  border-color: var(--color-foret);
+  box-shadow: inset 0 0 0 1px var(--color-foret);
+}
+
+.bouton-lecture {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Réglages d'accessibilité : attributs posés sur <html>, voir src/lib/accessibilite.ts. */
+html[data-a11y-taille="grand"] {
+  font-size: 118.75%;
+}
+html[data-a11y-taille="tres-grand"] {
+  font-size: 137.5%;
+}
+
+html[data-a11y-police="lisible"] {
+  --font-sans: var(--font-lisible);
+  --font-titre: var(--font-lisible);
+}
+html[data-a11y-police="dyslexie"] {
+  --font-sans: var(--font-dyslexie);
+  --font-titre: var(--font-dyslexie);
+}
+html[data-a11y-police="dyslexie"] body {
+  letter-spacing: 0.04em;
+  word-spacing: 0.14em;
+}
+html[data-a11y-police="dyslexie"] :is(p, li, label, summary, dd, dt, legend) {
+  line-height: 1.8 !important;
+}
+html[data-a11y-police="dyslexie"] * {
+  font-style: normal !important;
+}
+
+html[data-a11y-contraste="true"] {
+  --color-papier: #ffffff;
+  --color-carte: #ffffff;
+  --color-encre: #000000;
+  --color-gris: #262626;
+  --color-trait: #333333;
+  --color-foret: #0b3324;
+  --color-foret-fonce: #000000;
+  --color-tomate: #8c1d07;
+}
+html[data-a11y-contraste="true"] .badge-categorie {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html[data-a11y-liens="true"] main a:not(.bouton-plein, .bouton-contour),
+html[data-a11y-liens="true"] footer a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+html[data-a11y-cibles="true"] :is(button, select, input:not([type="checkbox"], [type="hidden"]), summary) {
+  min-height: 3rem;
+}
+html[data-a11y-cibles="true"] :is(.bouton-plein, .bouton-contour) {
+  min-width: 3rem;
+  padding: 0.9rem 1.5rem;
+}
+html[data-a11y-cibles="true"] :is(main, header, footer) a:not(.leaflet-container a) {
+  display: inline-block;
+  padding-block: 0.5rem;
+}
+html[data-a11y-cibles="true"] input[type="checkbox"] {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+html[data-a11y-cibles="true"] .leaflet-touch .leaflet-bar a,
+html[data-a11y-cibles="true"] .leaflet-bar a {
+  width: 3rem;
+  height: 3rem;
+  line-height: 3rem;
+}
+
+html[data-a11y-focus="true"] :focus-visible {
+  outline: 4px solid var(--color-encre);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px var(--color-soleil);
+}
+
+html[data-a11y-animations="true"] *,
+html[data-a11y-animations="true"] *::before,
+html[data-a11y-animations="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-a11y-carte="true"] .carte-facultative {
+  display: none;
+}
+html[data-a11y-carte="true"] .message-sans-carte {
+  display: block;
+}
+
+html[data-a11y-lecture="true"] .bouton-lecture {
+  display: inline-block;
 }

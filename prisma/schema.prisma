@@ -15,8 +15,9 @@ model User {
   nicknameKey String   @unique @map("nickname_key") @db.VarChar(24)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  suggestions Suggestion[]
-  votes       Vote[]
+  suggestions  Suggestion[]
+  votes        Vote[]
+  signalements Signalement[]
 
   @@map("users")
 }
@@ -56,6 +57,15 @@ model Localisation {
   @@map("localisations")
 }
 
+/// PUBLIEE : visible de tous. EN_ATTENTE : visible de l'auteur et des modérateurs. REJETEE : idem, avec un motif.
+enum StatutModeration {
+  PUBLIEE
+  EN_ATTENTE
+  REJETEE
+
+  @@map("statut_moderation")
+}
+
 /// Une idée proposée par un habitant.
 model Suggestion {
   id             Int      @id @default(autoincrement())
@@ -64,14 +74,21 @@ model Suggestion {
   /// Position précise facultative : sans elle, l'idée n'apparaît pas sur la carte.
   latitude       Float?
   longitude      Float?
-  /// Compteurs dénormalisés depuis `votes`, pour trier par score en SQL.
-  votesPour      Int      @default(0) @map("votes_pour")
-  votesContre    Int      @default(0) @map("votes_contre")
-  score          Int      @default(0)
+  /// Compteur dénormalisé depuis `votes`, pour trier en SQL.
+  likes          Int      @default(0)
   createdAt      DateTime @default(now()) @map("created_at")
   auteurId       Int      @map("auteur_id")
   categorieId    Int      @map("categorie_id")
   localisationId Int      @map("localisation_id")
+  statut           StatutModeration @default(PUBLIEE)
+  /// Pourquoi l'idée a été mise de côté, pour le modérateur.
+  motifsModeration String[]         @default([]) @map("motifs_moderation")
+  /// Ce qui a analysé l'idée : regles, ia ou signalements.
+  analyseePar      String?          @map("analysee_par") @db.VarChar(20)
+  /// Message du modérateur à l'auteur.
+  noteModeration   String?          @map("note_moderation") @db.VarChar(500)
+  /// Date de la dernière décision humaine. Seuls les signalements postérieurs comptent ensuite.
+  moderatedAt      DateTime?        @map("moderated_at")
 
   auteur       User          @relation(fields: [auteurId], references: [id], onDelete: Cascade)
   categorie    Categorie     @relation(fields: [categorieId], references: [id], onDelete: Restrict)
@@ -79,9 +96,11 @@ model Suggestion {
   tags         Tag[]
   piecesJointes PieceJointe[]
   votes        Vote[]
+  signalements Signalement[]
 
   @@index([createdAt])
-  @@index([score])
+  @@index([likes])
+  @@index([statut, createdAt])
   @@index([categorieId])
   @@index([localisationId])
   @@map("suggestions")
@@ -103,11 +122,25 @@ model PieceJointe {
   @@map("pieces_jointes")
 }
 
-/// Un vote par habitant et par idée : +1 (pour) ou -1 (contre).
+/// Un signalement par habitant et par idée.
+model Signalement {
+  userId       Int      @map("user_id")
+  suggestionId Int      @map("suggestion_id")
+  motif        String   @db.VarChar(30)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, suggestionId])
+  @@index([suggestionId])
+  @@map("signalements")
+}
+
+/// Un j'aime par habitant et par idée.
 model Vote {
   userId       Int      @map("user_id")
   suggestionId Int      @map("suggestion_id")
-  valeur       Int      @db.SmallInt
   createdAt    DateTime @default(now()) @map("created_at")
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)

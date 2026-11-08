@@ -1,14 +1,27 @@
 import { connection } from "next/server";
 import { prisma } from "@/lib/db";
+import { estModerateur, getUtilisateur } from "@/lib/session";
 import { lireFichier } from "@/lib/uploads";
+import { estIdValide } from "@/lib/validation";
 
 export async function GET(_requete: Request, contexte: RouteContext<"/api/pieces-jointes/[id]">) {
   await connection();
   const id = Number((await contexte.params).id);
-  if (!Number.isInteger(id)) return new Response("Introuvable", { status: 404 });
+  if (!estIdValide(id)) return new Response("Introuvable", { status: 404 });
 
-  const piece = await prisma.pieceJointe.findUnique({ where: { id } });
+  const piece = await prisma.pieceJointe.findUnique({
+    where: { id },
+    include: { suggestion: { select: { statut: true, auteurId: true } } },
+  });
   if (!piece) return new Response("Introuvable", { status: 404 });
+
+  // Le document d'une idée écartée reste privé, comme l'idée elle-même.
+  if (piece.suggestion.statut !== "PUBLIEE") {
+    const [moderateur, utilisateur] = await Promise.all([estModerateur(), getUtilisateur()]);
+    if (!moderateur && utilisateur?.id !== piece.suggestion.auteurId) {
+      return new Response("Introuvable", { status: 404 });
+    }
+  }
 
   let contenu: Buffer;
   try {
